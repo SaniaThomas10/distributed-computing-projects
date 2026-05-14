@@ -1,0 +1,631 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>NBA Win Predictor</title>
+  <link href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@400;700;900&family=Barlow:wght@400;500&display=swap" rel="stylesheet" />
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      --red: #c0390f;
+      --red-bright: #d9430f;
+      --red-dark: #a02d0a;
+      --bg: #1a1008;
+      --bg-card: #231708;
+      --bg-deep: #120d05;
+      --border: #3a2510;
+      --text: #f0ece4;
+      --muted: #888;
+      --dim: #444;
+    }
+
+    html, body {
+      min-height: 100vh;
+      background: var(--bg);
+      color: var(--text);
+      font-family: 'Barlow', sans-serif;
+    }
+
+    /* NOISE TEXTURE OVERLAY */
+    body::before {
+      content: '';
+      position: fixed;
+      inset: 0;
+      background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noise'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noise)' opacity='0.04'/%3E%3C/svg%3E");
+      pointer-events: none;
+      z-index: 0;
+      opacity: 0.4;
+    }
+
+    .wrapper {
+      position: relative;
+      z-index: 1;
+      max-width: 720px;
+      margin: 0 auto;
+      padding: 0 1.5rem 3rem;
+    }
+
+    /* HEADER */
+    header {
+      border-bottom: 2px solid var(--red);
+      padding: 1.4rem 0;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      margin-bottom: 3rem;
+    }
+
+    .header-title {
+      font-family: 'Barlow Condensed', sans-serif;
+      font-weight: 900;
+      font-size: clamp(22px, 5vw, 32px);
+      letter-spacing: 3px;
+      text-transform: uppercase;
+    }
+
+    .header-title span { color: var(--red); }
+
+    .header-season {
+      font-family: 'Barlow Condensed', sans-serif;
+      font-size: 11px;
+      letter-spacing: 3px;
+      text-transform: uppercase;
+      color: var(--muted);
+    }
+
+    /* HERO TEXT */
+    .hero {
+      margin-bottom: 2.5rem;
+    }
+
+    .eyebrow {
+      font-family: 'Barlow Condensed', sans-serif;
+      font-size: 11px;
+      letter-spacing: 5px;
+      text-transform: uppercase;
+      color: var(--red);
+      margin-bottom: 0.4rem;
+    }
+
+    .hero-heading {
+      font-family: 'Barlow Condensed', sans-serif;
+      font-weight: 900;
+      font-size: clamp(48px, 10vw, 72px);
+      text-transform: uppercase;
+      letter-spacing: -1px;
+      line-height: 0.95;
+      color: var(--text);
+    }
+
+    .hero-heading em {
+      font-style: normal;
+      color: var(--red);
+    }
+
+    /* MATCHUP SELECTOR */
+    .matchup-section {
+      background: var(--bg-card);
+      border: 1px solid var(--border);
+      border-radius: 4px;
+      padding: 1.75rem;
+      margin-bottom: 1.25rem;
+    }
+
+    .matchup-grid {
+      display: grid;
+      grid-template-columns: 1fr 44px 1fr;
+      gap: 0;
+      align-items: end;
+    }
+
+    .team-block {}
+
+    .team-label {
+      font-family: 'Barlow Condensed', sans-serif;
+      font-size: 10px;
+      letter-spacing: 4px;
+      text-transform: uppercase;
+      color: var(--muted);
+      margin-bottom: 0.5rem;
+    }
+
+    .team-select {
+      width: 100%;
+      background: var(--bg-deep);
+      border: 1px solid var(--border);
+      border-radius: 3px;
+      color: var(--text);
+      font-family: 'Barlow Condensed', sans-serif;
+      font-size: clamp(15px, 3vw, 20px);
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 1px;
+      padding: 0.65rem 0.85rem;
+      cursor: pointer;
+      outline: none;
+      appearance: none;
+      -webkit-appearance: none;
+      transition: border-color 0.15s;
+    }
+
+    .team-select:focus { border-color: var(--red); }
+
+    .team-select option { background: #1a1008; }
+
+    .vs-col {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding-bottom: 4px;
+    }
+
+    .vs-text {
+      font-family: 'Barlow Condensed', sans-serif;
+      font-weight: 900;
+      font-size: 14px;
+      letter-spacing: 2px;
+      color: var(--red);
+      border: 1px solid var(--border);
+      border-radius: 50%;
+      width: 32px;
+      height: 32px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+
+    /* ERROR */
+    .error-msg {
+      background: #2a0f0f;
+      border: 1px solid var(--red);
+      border-radius: 3px;
+      padding: 0.65rem 1rem;
+      font-size: 13px;
+      color: #f09595;
+      display: none;
+      margin-bottom: 1rem;
+      font-family: 'Barlow Condensed', sans-serif;
+      letter-spacing: 1px;
+    }
+
+    /* PREDICT BUTTON */
+    .predict-btn {
+      width: 100%;
+      background: var(--red);
+      border: none;
+      border-radius: 3px;
+      color: var(--text);
+      font-family: 'Barlow Condensed', sans-serif;
+      font-weight: 900;
+      font-size: clamp(16px, 4vw, 22px);
+      letter-spacing: 5px;
+      text-transform: uppercase;
+      padding: 1rem;
+      cursor: pointer;
+      margin-bottom: 2rem;
+      transition: background 0.15s, transform 0.1s;
+    }
+
+    .predict-btn:hover { background: var(--red-bright); }
+    .predict-btn:active { background: var(--red-dark); transform: scale(0.99); }
+    .predict-btn:disabled { background: #3a1a0a; color: #555; cursor: not-allowed; transform: none; }
+
+    /* LOADING */
+    .loading-bar {
+      height: 2px;
+      background: var(--border);
+      border-radius: 1px;
+      overflow: hidden;
+      display: none;
+      margin-bottom: 2rem;
+    }
+
+    .loading-bar.active { display: block; }
+
+    .loading-bar-inner {
+      height: 100%;
+      background: var(--red);
+      width: 0%;
+      animation: loadpulse 1.2s ease-in-out infinite;
+    }
+
+    @keyframes loadpulse {
+      0% { width: 0%; margin-left: 0; }
+      50% { width: 60%; margin-left: 20%; }
+      100% { width: 0%; margin-left: 100%; }
+    }
+
+    /* RESULTS */
+    .results-section {
+      display: none;
+      animation: fadeUp 0.4s ease forwards;
+    }
+
+    .results-section.visible { display: block; }
+
+    @keyframes fadeUp {
+      from { opacity: 0; transform: translateY(16px); }
+      to { opacity: 1; transform: translateY(0); }
+    }
+
+    .section-divider {
+      border: none;
+      border-top: 1px solid var(--border);
+      margin-bottom: 1.75rem;
+    }
+
+    .results-eyebrow {
+      font-family: 'Barlow Condensed', sans-serif;
+      font-size: 10px;
+      letter-spacing: 5px;
+      text-transform: uppercase;
+      color: var(--muted);
+      margin-bottom: 1.25rem;
+    }
+
+    .result-row {
+      margin-bottom: 1.5rem;
+    }
+
+    .result-team-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: baseline;
+      margin-bottom: 0.5rem;
+    }
+
+    .result-team-name {
+      font-family: 'Barlow Condensed', sans-serif;
+      font-weight: 900;
+      font-size: clamp(18px, 4vw, 26px);
+      text-transform: uppercase;
+      letter-spacing: 2px;
+    }
+
+    .result-pct {
+      font-family: 'Barlow Condensed', sans-serif;
+      font-weight: 900;
+      font-size: clamp(24px, 6vw, 40px);
+      letter-spacing: -1px;
+      line-height: 1;
+    }
+
+    .result-pct.home-color { color: var(--red); }
+    .result-pct.away-color { color: var(--text); }
+
+    .bar-track {
+      height: 5px;
+      background: var(--border);
+      border-radius: 2px;
+      overflow: hidden;
+    }
+
+    .bar-fill {
+      height: 100%;
+      border-radius: 2px;
+      width: 0%;
+      transition: width 0.9s cubic-bezier(0.25, 1, 0.5, 1);
+    }
+
+    .bar-fill.home { background: var(--red); }
+    .bar-fill.away { background: var(--text); }
+
+    /* VERDICT CARD */
+    .verdict-card {
+      border-left: 3px solid var(--red);
+      background: var(--bg-card);
+      border-radius: 0 3px 3px 0;
+      padding: 1.1rem 1.4rem;
+      margin-bottom: 1.5rem;
+    }
+
+    .verdict-label {
+      font-family: 'Barlow Condensed', sans-serif;
+      font-size: 10px;
+      letter-spacing: 4px;
+      text-transform: uppercase;
+      color: var(--muted);
+      margin-bottom: 0.3rem;
+    }
+
+    .verdict-text {
+      font-family: 'Barlow Condensed', sans-serif;
+      font-weight: 700;
+      font-size: clamp(16px, 3.5vw, 22px);
+      text-transform: uppercase;
+      letter-spacing: 1px;
+      color: var(--text);
+    }
+
+    /* STATS STRIP */
+    .stats-strip {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      border: 1px solid var(--border);
+      border-radius: 4px;
+      overflow: hidden;
+    }
+
+    .stat-cell {
+      background: var(--bg-card);
+      padding: 1rem;
+      text-align: center;
+      border-right: 1px solid var(--border);
+    }
+
+    .stat-cell:last-child { border-right: none; }
+
+    .stat-val {
+      font-family: 'Barlow Condensed', sans-serif;
+      font-weight: 900;
+      font-size: clamp(20px, 4vw, 28px);
+      color: var(--text);
+      line-height: 1;
+      margin-bottom: 4px;
+    }
+
+    .stat-lbl {
+      font-family: 'Barlow Condensed', sans-serif;
+      font-size: 10px;
+      letter-spacing: 2px;
+      text-transform: uppercase;
+      color: var(--dim);
+    }
+
+    /* FOOTER */
+    footer {
+      border-top: 1px solid var(--border);
+      padding: 1.25rem 0;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-top: 3rem;
+    }
+
+    .footer-note {
+      font-family: 'Barlow Condensed', sans-serif;
+      font-size: 11px;
+      letter-spacing: 2px;
+      text-transform: uppercase;
+      color: var(--dim);
+    }
+
+    /* RESPONSIVE */
+    @media (max-width: 480px) {
+      .matchup-grid { grid-template-columns: 1fr 36px 1fr; }
+      .header-season { display: none; }
+      footer { flex-direction: column; gap: 0.5rem; text-align: center; }
+    }
+  </style>
+</head>
+<body>
+  <div class="wrapper">
+
+    <header>
+      <div class="header-title">NBA <span>WIN</span> PREDICTOR</div>
+      <div class="header-season">2024–25 Season</div>
+    </header>
+
+    <div class="hero">
+      <div class="eyebrow">Match Analysis</div>
+      <div class="hero-heading">Who Takes<br>The <em>W?</em></div>
+    </div>
+
+    <div class="matchup-section">
+      <div class="matchup-grid">
+        <div class="team-block">
+          <div class="team-label">Home Team</div>
+          <select class="team-select" id="home-team">
+            <option value="">Select...</option>
+            <option value="ATL">ATL Hawks</option>
+            <option value="BOS">BOS Celtics</option>
+            <option value="BKN">BKN Nets</option>
+            <option value="CHA">CHA Hornets</option>
+            <option value="CHI">CHI Bulls</option>
+            <option value="CLE">CLE Cavaliers</option>
+            <option value="DAL">DAL Mavericks</option>
+            <option value="DEN">DEN Nuggets</option>
+            <option value="DET">DET Pistons</option>
+            <option value="GSW">GSW Warriors</option>
+            <option value="HOU">HOU Rockets</option>
+            <option value="IND">IND Pacers</option>
+            <option value="LAC">LAC Clippers</option>
+            <option value="LAL">LAL Lakers</option>
+            <option value="MEM">MEM Grizzlies</option>
+            <option value="MIA">MIA Heat</option>
+            <option value="MIL">MIL Bucks</option>
+            <option value="MIN">MIN Timberwolves</option>
+            <option value="NOP">NOP Pelicans</option>
+            <option value="NYK">NYK Knicks</option>
+            <option value="OKC">OKC Thunder</option>
+            <option value="ORL">ORL Magic</option>
+            <option value="PHI">PHI 76ers</option>
+            <option value="PHX">PHX Suns</option>
+            <option value="POR">POR Trail Blazers</option>
+            <option value="SAC">SAC Kings</option>
+            <option value="SAS">SAS Spurs</option>
+            <option value="TOR">TOR Raptors</option>
+            <option value="UTA">UTA Jazz</option>
+            <option value="WAS">WAS Wizards</option>
+          </select>
+        </div>
+
+        <div class="vs-col">
+          <div class="vs-text">VS</div>
+        </div>
+
+        <div class="team-block">
+          <div class="team-label">Away Team</div>
+          <select class="team-select" id="away-team">
+            <option value="">Select...</option>
+            <option value="ATL">ATL Hawks</option>
+            <option value="BOS">BOS Celtics</option>
+            <option value="BKN">BKN Nets</option>
+            <option value="CHA">CHA Hornets</option>
+            <option value="CHI">CHI Bulls</option>
+            <option value="CLE">CLE Cavaliers</option>
+            <option value="DAL">DAL Mavericks</option>
+            <option value="DEN">DEN Nuggets</option>
+            <option value="DET">DET Pistons</option>
+            <option value="GSW">GSW Warriors</option>
+            <option value="HOU">HOU Rockets</option>
+            <option value="IND">IND Pacers</option>
+            <option value="LAC">LAC Clippers</option>
+            <option value="LAL">LAL Lakers</option>
+            <option value="MEM">MEM Grizzlies</option>
+            <option value="MIA">MIA Heat</option>
+            <option value="MIL">MIL Bucks</option>
+            <option value="MIN">MIN Timberwolves</option>
+            <option value="NOP">NOP Pelicans</option>
+            <option value="NYK">NYK Knicks</option>
+            <option value="OKC">OKC Thunder</option>
+            <option value="ORL">ORL Magic</option>
+            <option value="PHI">PHI 76ers</option>
+            <option value="PHX">PHX Suns</option>
+            <option value="POR">POR Trail Blazers</option>
+            <option value="SAC">SAC Kings</option>
+            <option value="SAS">SAS Spurs</option>
+            <option value="TOR">TOR Raptors</option>
+            <option value="UTA">UTA Jazz</option>
+            <option value="WAS">WAS Wizards</option>
+          </select>
+        </div>
+      </div>
+    </div>
+
+    <div class="error-msg" id="error-msg"></div>
+    <div class="loading-bar" id="loading-bar"><div class="loading-bar-inner"></div></div>
+
+    <button class="predict-btn" id="predict-btn" onclick="predict()">
+      Run Prediction →
+    </button>
+
+    <div class="results-section" id="results">
+      <hr class="section-divider" />
+      <div class="results-eyebrow">Prediction Results</div>
+
+      <div class="result-row">
+        <div class="result-team-header">
+          <div class="result-team-name" id="res-home-name">—</div>
+          <div class="result-pct home-color" id="res-home-pct">—</div>
+        </div>
+        <div class="bar-track">
+          <div class="bar-fill home" id="bar-home"></div>
+        </div>
+      </div>
+
+      <div class="result-row">
+        <div class="result-team-header">
+          <div class="result-team-name" id="res-away-name">—</div>
+          <div class="result-pct away-color" id="res-away-pct">—</div>
+        </div>
+        <div class="bar-track">
+          <div class="bar-fill away" id="bar-away"></div>
+        </div>
+      </div>
+
+      <div class="verdict-card">
+        <div class="verdict-label">Prediction</div>
+        <div class="verdict-text" id="verdict-text">—</div>
+      </div>
+
+      <div class="stats-strip">
+        <div class="stat-cell">
+          <div class="stat-val" id="stat-home-pct">—</div>
+          <div class="stat-lbl">Home Win %</div>
+        </div>
+        <div class="stat-cell">
+          <div class="stat-val" id="stat-edge">—</div>
+          <div class="stat-lbl">Edge</div>
+        </div>
+        <div class="stat-cell">
+          <div class="stat-val" id="stat-away-pct">—</div>
+          <div class="stat-lbl">Away Win %</div>
+        </div>
+      </div>
+    </div>
+
+    <footer>
+      <div class="footer-note">Powered by XGBoost + NBA Stats API 2025</div>
+      <div class="footer-note">NCF · Distributed Computing · Sania Thomas</div>
+    </footer>
+
+  </div>
+
+  <script>
+    // ── CHANGE THIS to your actual Hugging Face Space URL ──────────────────
+    const API_URL = "https://sthomas10-nba-predictor.hf.space/predict";
+    // ───────────────────────────────────────────────────────────────────────
+
+    async function predict() {
+      const home = document.getElementById('home-team').value;
+      const away = document.getElementById('away-team').value;
+      const errEl = document.getElementById('error-msg');
+      const loadEl = document.getElementById('loading-bar');
+      const btn = document.getElementById('predict-btn');
+
+      errEl.style.display = 'none';
+      document.getElementById('results').classList.remove('visible');
+
+      if (!home || !away) {
+        errEl.textContent = 'Please select both teams before running the prediction.';
+        errEl.style.display = 'block';
+        return;
+      }
+      if (home === away) {
+        errEl.textContent = 'Please select two different teams.';
+        errEl.style.display = 'block';
+        return;
+      }
+
+      btn.disabled = true;
+      loadEl.classList.add('active');
+
+      try {
+        const res = await fetch(API_URL, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ home_team: home, away_team: away })
+        });
+
+        if (!res.ok) throw new Error('Server error: ' + res.status);
+        const data = await res.json();
+
+        const homeProb = parseFloat(data.home_win_prob);
+        const awayProb = parseFloat(data.away_win_prob);
+        const edge = Math.abs(homeProb - awayProb).toFixed(1);
+        const winner = homeProb >= awayProb ? home : away;
+        const loser  = homeProb >= awayProb ? away : home;
+        const topProb = Math.max(homeProb, awayProb);
+        const confidence = topProb >= 65 ? 'High confidence' : topProb >= 55 ? 'Slight edge' : 'Toss-up';
+
+        document.getElementById('res-home-name').textContent = home + ' (Home)';
+        document.getElementById('res-away-name').textContent = away + ' (Away)';
+        document.getElementById('res-home-pct').textContent  = homeProb.toFixed(1) + '%';
+        document.getElementById('res-away-pct').textContent  = awayProb.toFixed(1) + '%';
+        document.getElementById('stat-home-pct').textContent = homeProb.toFixed(1) + '%';
+        document.getElementById('stat-away-pct').textContent = awayProb.toFixed(1) + '%';
+        document.getElementById('stat-edge').textContent     = '+' + edge + '%';
+        document.getElementById('verdict-text').textContent  =
+          confidence + ' — ' + winner + ' over ' + loser;
+
+        document.getElementById('results').classList.add('visible');
+
+        setTimeout(() => {
+          document.getElementById('bar-home').style.width = homeProb + '%';
+          document.getElementById('bar-away').style.width = awayProb + '%';
+        }, 60);
+
+      } catch (err) {
+        errEl.textContent = 'Could not reach the prediction API. Make sure your Hugging Face endpoint is live.';
+        errEl.style.display = 'block';
+      } finally {
+        btn.disabled = false;
+        loadEl.classList.remove('active');
+      }
+    }
+  </script>
+</body>
+</html>
